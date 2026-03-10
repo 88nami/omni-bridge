@@ -1,0 +1,15 @@
+name: PoC Test
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: TEST - URL slash bug
+        shell: bash
+        run: |
+          echo "INFURA_API_KEY=" > .env
+          URL="https://mainnet.infura.io/v3/mykey"
+          sed -i "s/INFURA_API_KEY=/INFURA_API_KEY=$URL/" .env || echo "VULNERABILITY CONFIRMED!"
+          cat .env
